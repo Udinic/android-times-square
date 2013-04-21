@@ -19,6 +19,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import static com.squareup.timessquare.Utils.*;
 import static java.util.Calendar.DATE;
 import static java.util.Calendar.DAY_OF_MONTH;
 import static java.util.Calendar.DAY_OF_WEEK;
@@ -250,29 +251,38 @@ public class CalendarPickerView extends ListView {
     return selectedDates;
   }
 
-  /** Returns a string summarizing what the client sent us for init() params. */
-  private static String dbg(Iterable<Date> selectedDates, Date minDate, Date maxDate) {
-    String dbgString = "minDate: " + minDate + "\nmaxDate: " + maxDate;
-    if (selectedDates == null) {
-      dbgString += "\nselectedDates: null";
-    } else {
-      dbgString += "\nselectedDates: ";
-      for (Date selectedDate : selectedDates) {
-        dbgString += selectedDate + "; ";
-      }
+    List<List<MonthCellDescriptor>> getMonthCells(MonthDescriptor month, Calendar startCal) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(startCal.getTime());
+        List<List<MonthCellDescriptor>> cells = new ArrayList<List<MonthCellDescriptor>>();
+        cal.set(DAY_OF_MONTH, 1);
+        int firstDayOfWeek = cal.get(DAY_OF_WEEK);
+        cal.add(DATE, cal.getFirstDayOfWeek() - firstDayOfWeek);
+        while ((cal.get(MONTH) < month.getMonth() + 1 || cal.get(YEAR) < month.getYear()) //
+                && cal.get(YEAR) <= month.getYear()) {
+            Logr.d("Building week row starting at %s", cal.getTime());
+            List<MonthCellDescriptor> weekCells = new ArrayList<MonthCellDescriptor>();
+            cells.add(weekCells);
+            for (int c = 0; c < 7; c++) {
+                Date date = cal.getTime();
+                boolean isCurrentMonth = cal.get(MONTH) == month.getMonth();
+                boolean isSelected = isCurrentMonth && containsDate(selectedCals, cal);
+                boolean isSelectable = isCurrentMonth && betweenDates(cal, minCal, maxCal);
+                boolean isToday = sameDate(cal, today);
+                int value = cal.get(DAY_OF_MONTH);
+                MonthCellDescriptor cell =
+                        new MonthCellDescriptor(date, isCurrentMonth, isSelectable, isSelected, isToday, value);
+                if (isSelected) {
+                    selectedCells.add(cell);
+                }
+                weekCells.add(cell);
+                cal.add(DATE, 1);
+            }
+        }
+        return cells;
     }
-    return dbgString;
-  }
 
-  /** Clears out the hours/minutes/seconds/millis of a Calendar. */
-  private static void setMidnight(Calendar cal) {
-    cal.set(HOUR_OF_DAY, 0);
-    cal.set(MINUTE, 0);
-    cal.set(SECOND, 0);
-    cal.set(MILLISECOND, 0);
-  }
-
-  private class CellClickedListener implements MonthView.Listener {
+    private class CellClickedListener implements MonthView.Listener {
     @Override public void handleClick(MonthCellDescriptor cell) {
       if (!betweenDates(cell.getDate(), minCal, maxCal)) {
         String errMessage =
@@ -358,67 +368,6 @@ public class CalendarPickerView extends ListView {
       monthView.init(months.get(position), cells.get(position));
       return monthView;
     }
-  }
-
-  List<List<MonthCellDescriptor>> getMonthCells(MonthDescriptor month, Calendar startCal) {
-    Calendar cal = Calendar.getInstance();
-    cal.setTime(startCal.getTime());
-    List<List<MonthCellDescriptor>> cells = new ArrayList<List<MonthCellDescriptor>>();
-    cal.set(DAY_OF_MONTH, 1);
-    int firstDayOfWeek = cal.get(DAY_OF_WEEK);
-    cal.add(DATE, cal.getFirstDayOfWeek() - firstDayOfWeek);
-    while ((cal.get(MONTH) < month.getMonth() + 1 || cal.get(YEAR) < month.getYear()) //
-        && cal.get(YEAR) <= month.getYear()) {
-      Logr.d("Building week row starting at %s", cal.getTime());
-      List<MonthCellDescriptor> weekCells = new ArrayList<MonthCellDescriptor>();
-      cells.add(weekCells);
-      for (int c = 0; c < 7; c++) {
-        Date date = cal.getTime();
-        boolean isCurrentMonth = cal.get(MONTH) == month.getMonth();
-        boolean isSelected = isCurrentMonth && containsDate(selectedCals, cal);
-        boolean isSelectable = isCurrentMonth && betweenDates(cal, minCal, maxCal);
-        boolean isToday = sameDate(cal, today);
-        int value = cal.get(DAY_OF_MONTH);
-        MonthCellDescriptor cell =
-            new MonthCellDescriptor(date, isCurrentMonth, isSelectable, isSelected, isToday, value);
-        if (isSelected) {
-          selectedCells.add(cell);
-        }
-        weekCells.add(cell);
-        cal.add(DATE, 1);
-      }
-    }
-    return cells;
-  }
-
-  private static boolean containsDate(Iterable<Calendar> selectedCals, Calendar cal) {
-    for (Calendar selectedCal : selectedCals) {
-      if (sameDate(cal, selectedCal)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean sameDate(Calendar cal, Calendar selectedDate) {
-    return cal.get(MONTH) == selectedDate.get(MONTH)
-        && cal.get(YEAR) == selectedDate.get(YEAR)
-        && cal.get(DAY_OF_MONTH) == selectedDate.get(DAY_OF_MONTH);
-  }
-
-  private static boolean betweenDates(Calendar cal, Calendar minCal, Calendar maxCal) {
-    final Date date = cal.getTime();
-    return betweenDates(date, minCal, maxCal);
-  }
-
-  static boolean betweenDates(Date date, Calendar minCal, Calendar maxCal) {
-    final Date min = minCal.getTime();
-    return (date.equals(min) || date.after(min)) // >= minCal
-        && date.before(maxCal.getTime()); // && < maxCal
-  }
-
-  private static boolean sameMonth(Calendar cal, MonthDescriptor month) {
-    return (cal.get(MONTH) == month.getMonth() && cal.get(YEAR) == month.getYear());
   }
 
   public void setOnDateSelectedListener(OnDateSelectedListener listener) {
